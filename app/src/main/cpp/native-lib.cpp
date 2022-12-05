@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <thread>
 #include "JThread.h"
+#include "camera.h"
 #include <cstdio>
 #include <cstdlib>
 #include "android/native_window.h"
@@ -219,6 +220,8 @@ class Renderer : public JThread {
 public://constructor
     Renderer() {
         lock = std::unique_lock<std::mutex>(mutex, std::defer_lock);
+        camera = new Camera();
+        camera -> Position =glm::vec3(0.0f,0.0f,10.0f);
     };
 
     ~Renderer() {
@@ -226,6 +229,7 @@ public://constructor
         if (_window != nullptr)
             ANativeWindow_release(_window);
         _window = nullptr;
+        delete camera;
     };
     /*-----------state data start-----------*/
 public:
@@ -249,8 +253,6 @@ public:
 
 public://--------------------gl data
     RenderPara _renderParam;
-
-
 public:/*---------lifecycle functions start------------------------------*/
     void resume() {
         mutex.lock();
@@ -329,13 +331,17 @@ public:/*---------lifecycle functions start------------------------------*/
 
     int dx = -1, dy = -1;
     bool processInput = false;
+    bool isKey = false;
+    int dir=-1;
 
     //fixme : client api paramaters
-    void processInputClient(int dx, int dy) {
+    void processInputClient(int dx, int dy,bool processKeyBoard=false,int direction=-1) {
         mutex.lock();
         processInput = true;
         this->dx = dx;
         this->dy = dy;
+        this->isKey = processKeyBoard;
+        this-> dir= direction;
         mutex.unlock();
     };
 
@@ -418,44 +424,26 @@ public:/*---------lifecycle functions start------------------------------*/
         _renderParam._context = context;
         _renderParam._width = w;
         _renderParam._height = h;
-
         //glEnable(GL_DEPTH_TEST);   /// 关闭透明
         //glDisable(GL_ALPHA_TEST);
         //glEnable(GL_BLEND);
         //(GL_DITHER);
         //glEnable( GL_DEPTH_TEST );
-       /* glDepthFunc( GL_LEQUAL );
-        glDepthMask( true );*/
-
+        /* glDepthFunc( GL_LEQUAL );
+         glDepthMask( true );*/
         //glEnable(GL_CULL_FACE);     /// 开始剔除操作
         //glEnable(GL_TEXTURE_2D);
-
         // 黑色背景
-
-
         //gl.glClearColor(0, 0, 0, 0);
-
-
 // 启用阴影平滑
-
         //lgShadeModel(SMOO);
-
 // 启用深度测试
-
         glEnable(GL_DEPTH_TEST);
-
 //启用纹理映射
-
-
-
 //深度测试的类型
-
 //精细的透视修正
-
 //允许2D贴图,纹理
-
         glEnable(GL_TEXTURE_2D);
-
         //glClearColor(0, 0, 0, 0);                   // background color
         //glClearStencil(0);                                               // clear stencil buffer
         glViewport(0, 0, w, h);
@@ -477,6 +465,7 @@ public:/*---------lifecycle functions start------------------------------*/
         return mStateNow;
     };
 
+    //fixme pausing ->stop
     void run() override {
         using namespace std::literals;
         while (true) {
@@ -528,12 +517,14 @@ public:/*---------lifecycle functions start------------------------------*/
             if (_window == nullptr || isPaused) { //if we are waiting for window or we are pausing
                 ;//do nothing
                 processInput = false;
+                //ignore input
                 dx = -1;
                 dy = -1;
             } else {
                 if (processInput) {
                     dx; //do something,eg,change camera position;
                     dy; //do something with it
+                    handleInputInternal(dx,dy,isKey,dir);
                     processInput = false;
                     dx = -1;
                     dy = -1;
@@ -544,7 +535,7 @@ public:/*---------lifecycle functions start------------------------------*/
             if (isPaused) {
                 if (releaseWhenPause) {
                     // release eglcontext
-                    LOGE("desrtoy egl when pause if has egl")
+                    //LOGE("desrtoy egl when pause if has egl")
                     if (hasEgl) {
                         LOGE("DESTORY")
                         desrtroyEgl();
@@ -554,7 +545,7 @@ public:/*---------lifecycle functions start------------------------------*/
                 //LOGE("sleep for pausing")
                 m_State=STATE_PAUSING;
                 mutex.unlock();
-                std::this_thread::sleep_for(    2ms);
+                std::this_thread::sleep_for(    20ms);
                 continue;
             }
             if (createOpration) {
@@ -567,7 +558,7 @@ public:/*---------lifecycle functions start------------------------------*/
                     //LOGE("wait for window");
                     m_State=STATE_IDLE;
                     mutex.unlock();
-                    std::this_thread::sleep_for(    2ms);
+                    std::this_thread::sleep_for(    20ms);
                     continue;
                 } else {
                     if (hasEgl) {
@@ -710,6 +701,36 @@ public:
     unsigned int VBO, EBO,VAOCUBE,VBOCUBE;
     unsigned int VAO_OBJECT,texture_jsn;
 
+    Camera* camera=nullptr;
+
+    /*-----------------user input--------------*/
+    void handleInputInternal(int dx,int dy,bool isKey,int dir){
+        if(!isKey){
+            camera->ProcessMouseMovement((float)dx,(float)dy);
+            return;
+        }
+        else{
+            float step = 0.05f;
+            if(dir==1){
+                camera ->ProcessKeyboard(FORWARD,step);
+            }
+            if(dir==2){
+                camera ->ProcessKeyboard(BACKWARD,step);
+            }
+            if(dir==3){
+                camera ->ProcessKeyboard(LEFT,step);
+            }
+            if(dir==4){
+                camera ->ProcessKeyboard(RIGHT,step);
+            }
+
+        }
+        //clear things up
+        dx=-1;dy=-1;
+    };
+    /*------------------user input-------------*/
+
+    //handleInput()  -> draw()
     void drawF() {
         if (reCreateDrawResources) {
             //if we need to recreate something when egl recreated,do it  here
@@ -760,13 +781,13 @@ public:
         double positveData1 = abs(math1);
         //double cs = cos((double )currentTimeMills * 0.001);
         glm::vec3 vec1((float) positveData, (float) positveData1, abs(sin((double )currentTimeMills * 0.00030)));//LOGE("color is:%f",(float )positveData);
-        //vec1=glm::vec3 (1.0f);
+        vec1=glm::vec3 (0.5f,0.5f,0.5f); //FIXME Color
         glUniform3fv(glGetUniformLocation(programLightingCube, "uColor"), 1, &vec1[0]);
         glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 projection = glm::mat4(1.0f);
-        glm::mat4 view = glm::mat4(1.0f);
+        glm::mat4 view = glm::mat4(1.0f); // pro view model
         projection = glm::perspective(glm::radians(45.0f), (float) _renderParam._width /(float) _renderParam._height, 0.1f,100.0f);
-        view = glm::translate(view, glm::vec3(0.0f, 0.0f, -10.0f));
+        view = camera->GetViewMatrix();
         glUniformMatrix4fv(glGetUniformLocation(programLightingCube, "view"), 1, GL_FALSE, &view[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(programLightingCube, "projection"), 1, GL_FALSE, &projection[0][0]);
         glUseProgram(programLightingCube);
@@ -788,7 +809,7 @@ public:
         for (int i = 0; i < 1; i++) {
             model = glm::mat4(1.0f);
             lightPos=glm::vec3(x,y ,z );
-            lightPos=(glm::vec3)   (glm::translate(glm::mat4(1.0f),newCenter)    * glm::vec4(lightPos, 1.0f));
+            //lightPos=(glm::vec3)   (glm::translate(glm::mat4(1.0f),newCenter)    * glm::vec4(lightPos, 1.0f));
             model = glm::translate(model,lightPos);
             float angle = 20.0f * i + (float)currentTimeMills * 0.0010;
             model= glm::rotate(model,glm::radians(angle),glm::vec3(1.0f,0.3f,0.5f));
@@ -810,6 +831,11 @@ public:
         glEnableVertexAttribArray(2);
         glBindBuffer(GL_ARRAY_BUFFER,0);
 
+        //-----light params---------
+        glUniform1f(glGetUniformLocation(programObjectCube, "material.constant"), 1.0f);
+        glUniform1f(glGetUniformLocation(programObjectCube, "material.linear"), 0.09f);
+        glUniform1f(glGetUniformLocation(programObjectCube, "material.quadratic"), 0.032f);
+        //-----light params
         glUniform1i(glGetUniformLocation(programObjectCube, "material.img"), 0);
         glUniform3fv(glGetUniformLocation(programObjectCube, "material.ambient"), 1,&glm::vec3(0.2f,0.2f,0.2f)[0]);
         glUniform3fv(glGetUniformLocation(programObjectCube, "material.diffuse"), 1,&glm::vec3(0.5f,0.5f,0.5f)[0]);
@@ -817,17 +843,17 @@ public:
         glUniform1f(glGetUniformLocation(programObjectCube, "material.shinnes"), 64.0f);
         glUniform3fv(glGetUniformLocation(programObjectCube, "lightPos"), 1,&lightPos[0]);
         glUniform3fv(glGetUniformLocation(programObjectCube, "lightColor"), 1,&vec1[0]);
-        glUniform3fv(glGetUniformLocation(programObjectCube, "viewPos"), 1,&glm::vec3(0.0f,0.0f,10.0f)[0]);
+        glUniform3fv(glGetUniformLocation(programObjectCube, "viewPos"), 1,&(camera->Position[0]));
 
         glm::mat4 model1 = glm::mat4(1.0f);
         float angle_ob=(float)((double)currentTimeMills*0.012);
-         //angle_ob=75.0f;
+        //angle_ob=75.0f;
         model1= glm::rotate(model1,glm::radians(angle_ob),glm::vec3(1.0f,0.3f,0.5f));
         model1= glm::scale(model1,glm::vec3(3.0f));
         glm::mat4 projection1 = glm::mat4(1.0f);
         glm::mat4 view1 = glm::mat4(1.0f);
         projection1 = glm::perspective(glm::radians(45.0f), (float) _renderParam._width /(float) _renderParam._height, 0.1f,100.0f);
-        view1 = glm::translate(view1, glm::vec3(0.0f, 0.0f, -10.0f));
+        view1 = camera->GetViewMatrix();
         glUniformMatrix4fv(glGetUniformLocation(programObjectCube, "view"), 1, GL_FALSE, &view1[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(programObjectCube, "projection"), 1, GL_FALSE, &projection1[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(programObjectCube, "model"), 1, GL_FALSE, &model1[0][0]);
@@ -837,33 +863,32 @@ public:
         glUseProgram(programLightingCube);
         glBindVertexArray(VAOCUBE);
         glDrawArrays(GL_TRIANGLES, 0, 36);
-
         eglSwapBuffers(_renderParam._display, _renderParam._surface);
     };
 
 };
 //todo add another cpp file
 //leave model matrix indentify
-const char * Renderer::vShaderSourceObjectCube =  "#version 320 es\n"
-                                                  "precision highp float;\n"
-                                                  "layout (location=0) in vec3 aPos;\n"
-                                                  "layout (location=1) in vec3 aNormal;\n"
-                                                  "layout (location=2) in vec2 aTexCoord;\n"
-                                                  "out vec3 fragPos;\n"
-                                                  "out vec3 normal;\n"
-                                                  "out vec2 texCoord;\n"
-                                                  "uniform mat4 projection;\n"
-                                                  "uniform mat4 model;\n"
-                                                  "uniform mat4 view;\n"
-                                                  "void main()\n"
-                                                  "{\n"
-                                                  "   fragPos= vec3(model * vec4(aPos, 1.0) );\n"
-                                                  "   normal = normalize(mat3(transpose(inverse(model))) * aNormal) ;\n"
-                                                  "   texCoord = aTexCoord ;\n"
-                                                  "   gl_Position = projection * view * model* vec4(aPos, 1.0);\n"
-                                                  "}\0";
+const char* Renderer::vShaderSourceObjectCube =  "#version 320 es\n"
+                                                 "precision highp float;\n"
+                                                 "layout (location=0) in vec3 aPos;\n"
+                                                 "layout (location=1) in vec3 aNormal;\n"
+                                                 "layout (location=2) in vec2 aTexCoord;\n"
+                                                 "out vec3 fragPos;\n"
+                                                 "out vec3 normal;\n"
+                                                 "out vec2 texCoord;\n"
+                                                 "uniform mat4 projection;\n"
+                                                 "uniform mat4 model;\n"
+                                                 "uniform mat4 view;\n"
+                                                 "void main()\n"
+                                                 "{\n"
+                                                 "   fragPos= vec3(model * vec4(aPos, 1.0) );\n"
+                                                 "   normal = normalize(mat3(transpose(inverse(model))) * aNormal) ;\n"
+                                                 "   texCoord = aTexCoord ;\n"
+                                                 "   gl_Position = projection * view * model* vec4(aPos, 1.0);\n"
+                                                 "}\0";
 
-const char *Renderer::fShaderSourceObjectCube = "#version 320 es\n"
+const char* Renderer::fShaderSourceObjectCube = "#version 320 es\n"
                                                 "precision highp float;\n"
                                                 "struct Material{\n"
                                                 "    vec3 ambient;\n"
@@ -871,6 +896,9 @@ const char *Renderer::fShaderSourceObjectCube = "#version 320 es\n"
                                                 "    vec3 specular;\n"
                                                 "    float shinness;\n"
                                                 "    sampler2D img;\n"
+                                                "    float constant;\n"
+                                                "    float linear;\n"
+                                                "    float quadratic;\n"
                                                 "};\n"
                                                 "out vec4 FragColor;\n"
                                                 "uniform vec3 lightPos;\n"
@@ -893,9 +921,13 @@ const char *Renderer::fShaderSourceObjectCube = "#version 320 es\n"
                                                 "        vec3  refDir= reflect( normalize(fragPos- lightPos), normalize(normal)); \n"
                                                 "        float  strength=max(0.0001,dot(normalize(refDir),normalize(viewPos-fragPos) )); \n"
                                                 "        spec= pow(strength, material.shinness); \n"
-                                                "    }"
+                                                "    }\n"
+                                                "    float distance= length(lightPos-fragPos);\n"
+                                                "    float attenuation= 1.0/(material.constant+ material.linear* distance + material.quadratic* (distance* distance));\n"
+                                                "    attenuation= 1.0f;\n"
                                                 "    vec3  specular= material.specular * spec *  vec3(0.2) * lightColor ; \n"   //specular
                                                 "    vec3 result = ambient+ diffuse + specular  ;\n"
+                                                "    result = result * attenuation;\n"
                                                 "    FragColor = vec4(result , 1.0);\n"
                                                 "}\n\0";
 
@@ -934,7 +966,7 @@ Java_com_jsn_demo1_MainActivity_native_1create(JNIEnv *env, jobject thiz) {
     LOGE("handle:%llu", thiz);
     auto it = activityThreadMap.find(handle);
     if (it == activityThreadMap.end()) {
-        LOGE("MAKE A RENDERER SHARED");
+        LOGE("  MAKE A RENDERER SHARED");
         activityThreadMap[handle] = std::make_shared<Renderer>();
         //------------------dump unorder map--------------------------------------------
         //   Helper lambda function to print     key-value pairs
@@ -960,15 +992,7 @@ Java_com_jsn_demo1_MainActivity_native_1surface_1created(JNIEnv *env, jobject th
     }
     activityThreadMap[handle]->start();
     activityThreadMap[handle]->surfaceCreated(env, surface);
-    for (const auto &n: activityThreadMap) { //std::pair<std::basic_string<char> , std::shared_ptr<Renderer>>
-        auto entry =(std::ostringstream() << "Key:[" << n.first
-                                                                            << "] Value:["
-                                                                            << n.second
-                                                                            << "]\n").str();
-        LOGE("entry:%s", entry.c_str());
-    }
 }
-
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_jsn_demo1_MainActivity_native_1pause(JNIEnv *env, jobject thiz) {
@@ -989,7 +1013,6 @@ Java_com_jsn_demo1_MainActivity_native_1resume(JNIEnv *env, jobject thiz) {
         LOGE("Thread not found when onResume()");
     }
 }
-
 extern "C"
 JNIEXPORT jint JNICALL
 Java_com_jsn_demo1_MainActivity_rState(JNIEnv *env, jobject thiz) {
@@ -998,6 +1021,7 @@ Java_com_jsn_demo1_MainActivity_rState(JNIEnv *env, jobject thiz) {
     }
     return -1;
 }
+
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_jsn_demo1_MainActivity_native_1PlayPause(JNIEnv *env, jobject thiz) {
@@ -1005,8 +1029,6 @@ Java_com_jsn_demo1_MainActivity_native_1PlayPause(JNIEnv *env, jobject thiz) {
         activityThreadMap[handle] -> playPause();
     }
 }
-
-
 
 extern "C"
 JNIEXPORT void JNICALL
@@ -1016,5 +1038,21 @@ Java_com_jsn_demo1_MainActivity_nativeAssetManager(JNIEnv *env, jobject thiz, jo
         __android_log_print(ANDROID_LOG_ERROR, "NATIVE", "error loading asset   maanger");
     } else {
         __android_log_print(ANDROID_LOG_ERROR, "NATIVE", "loaded asset  manager");
+    }
+}
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_jsn_demo1_MainActivity_native_1mouse_1input(JNIEnv *env, jobject thiz, jfloat dx,
+                                                     jfloat dy) {
+    if(auto it =activityThreadMap.find(handle) != activityThreadMap.end()){
+        activityThreadMap[handle]->processInputClient((int)dx,(int)dy,false,-1);
+    }
+}
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_jsn_demo1_MainActivity_native_1keyboard_1input(JNIEnv *env, jobject thiz, jfloat dx,
+                                                        jfloat dy, jboolean key_board, jint dir) {
+    if(auto it =activityThreadMap.find(handle) != activityThreadMap.end()){
+        activityThreadMap[handle]->processInputClient((int)dx,(int)dy,true,dir);
     }
 }

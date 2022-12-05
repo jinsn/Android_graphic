@@ -1,14 +1,12 @@
 package com.jsn.demo1
 
-import android.annotation.SuppressLint
 import android.content.res.AssetManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.os.Environment
-import android.util.Log
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
+import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import com.jsn.demo1.databinding.ActivityMainBinding
@@ -23,78 +21,44 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        nativeAssetManager(applicationContext.assets)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         // Example of a call to a native method
         sv()
         mkDir()
-        asset();
         native_create()
+        binding.iv.setOnClickListener { compoundButton ->
+            playPause()
+        }
         binding.iv.setOnClickListener {
             playPause()
         }
-        /*     scope.launch {
-                 while(!stop){
-                     delay(16)
-                     val now =rState()
-                         if(now==-1){
-                             binding.cb.visibility= GONE
-                             binding.iv.visibility= GONE
-                         }else if(now ==0){
-                             binding.cb.visibility= GONE
-                             binding.iv.visibility= GONE
-                         }else if(now ==1){
-                             binding.cb.text= "running"
-                             binding.cb.isChecked=true;
-                             binding.cb.visibility= VISIBLE;
-                             binding.iv.visibility= VISIBLE
-                             binding.iv.setImageResource(R.drawable.aar_ic_pause)
-                         }else if(now ==2){
-                             binding.cb.text= "pausing"
-                             binding.cb.isChecked=false;
-                             binding.cb.visibility= VISIBLE
-                             binding.iv.visibility= VISIBLE
-                             binding.iv.setImageResource(R.drawable.icon_video)
-
-                         }
-
-                 }
-             }*/
         t= thread {
             while(!stop){
-                Thread.sleep(4)
+                Thread.sleep(16)
                 val now =rState()
-                runOnUiThread {
+             /*   runOnUiThread {
                     if(now==-1){
-                        //binding.cb.visibility= GONE
+                        binding.iv.visibility= GONE
                         binding.iv.visibility= GONE
                     }else if(now ==0){
-                        //binding.cb.visibility= GONE
-                        //binding.iv.visibility= GONE
+                        binding.iv.visibility= GONE
+                        binding.iv.visibility= GONE
                     }else if(now ==1){
-                       // binding.cb.text= "running"
-                       // binding.cb.isChecked=true;
-                       // binding.cb.visibility= VISIBLE;
                         binding.iv.visibility= VISIBLE
-                        binding.iv.setImageResource(R.mipmap.pause_icon)
+                        //binding.iv.setImageResource(R.drawable.pause_icon)
                     }else if(now ==2){
-                       // binding.cb.text= "pausing"
-                     //  binding.cb.isChecked=false;
-                      //  binding.cb.visibility= VISIBLE
                         binding.iv.visibility= VISIBLE
-                        binding.iv.setImageResource(R.mipmap.video_icon)
+                        //binding.iv.setImageResource(R.drawable.icon_video)
                     }
-                }
+                }*/
             }
         }
+        wasd()
     }
 
-    private fun asset() {
-        nativeAssetManager(applicationContext.assets)
-    }
-
-    private external fun nativeAssetManager(assets: AssetManager)
 
     val job= SupervisorJob();
     val dispacher= Dispatchers.Main.immediate;
@@ -111,30 +75,70 @@ class MainActivity : AppCompatActivity() {
     private external fun native_create()
     private external fun native_PlayPause()
 
-    @SuppressLint("ClickableViewAccessibility")
     private fun sv() {
-        binding.sv.holder.addCallback(object : SurfaceHolder.Callback {
+        binding.sv.holder.addCallback(object :SurfaceHolder.Callback{
             override fun surfaceCreated(p0: SurfaceHolder) {
                 native_surface_created(p0.surface)
             }
 
             override fun surfaceChanged(p0: SurfaceHolder, p1: Int, w: Int, h: Int) {
-                native_surface_changed(p0.surface, w, h)
+                native_surface_changed(p0.surface,w,h)
             }
-
             override fun surfaceDestroyed(p0: SurfaceHolder) {
                 native_surface_destroyed(p0.surface)
             }
         })
-        binding.sv.setOnTouchListener {_,e: MotionEvent ->
+        //mouse movement
+        binding.sv.setOnTouchListener { view: View, motionEvent: MotionEvent ->
+            when(motionEvent.action){
 
-            return@setOnTouchListener false;
+                MotionEvent.ACTION_DOWN->{
+                    firstTouch=true
+                }
+                MotionEvent.ACTION_MOVE->{
+                    if(firstTouch){
+                        firstTouch=false
+                        last_x=motionEvent.x
+                        last_y=motionEvent.y
+                    }
+                    val dx=motionEvent.x-last_x
+                    val dy=motionEvent.y-last_y
+                    processMouseInput(dx,-dy) //fixme
+                    last_x=motionEvent.x
+                    last_y=motionEvent.y
+                }
+                MotionEvent.ACTION_UP->{}
+                MotionEvent.ACTION_CANCEL->{}
+            }
+            true
         }
     }
 
-    var x=-1 ;
-    var y=-1 ;
+    private fun processMouseInput(dx: Float, dy: Float) {
+        native_mouse_input(dx,dy)
+    }
 
+    private external fun native_mouse_input(dx: Float, dy: Float)
+
+
+    private fun wasd() {
+        binding.btW.setOnClickListener {
+            native_keyboard_input(-1f,-1f,true,1)
+        }
+        binding.btA.setOnClickListener {
+            native_keyboard_input(-1f,-1f,true,3)
+        }
+        binding.btS.setOnClickListener {
+            native_keyboard_input(-1f,-1f,true,2)
+        }
+        binding.btD.setOnClickListener {
+            native_keyboard_input(-1f,-1f,true,4)
+        }
+    }
+    private external fun native_keyboard_input(dx: Float, dy: Float,keyBoard:Boolean,dir:Int)
+
+    var last_x=0f; var last_y=0f;
+    var firstTouch= true;
     override fun onDestroy() {
         super.onDestroy()
         native_destroy()
@@ -150,16 +154,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun mkDir(){
-        filesDir.apply {
-            absolutePath.also {
-                Log.e("imagePath", it );
-            }
-        }
-        getExternalFilesDir(Environment.DIRECTORY_PICTURES).apply {
-            this?.also {
-                Log.e("imagePath", it.absolutePath );
-            }
-        }
+
     }
 
     external fun rState():Int
@@ -176,13 +171,13 @@ class MainActivity : AppCompatActivity() {
     private external fun native_surface_changed(surface: Surface,w:Int,h:Int)
     private external fun native_surface_destroyed(surface: Surface)
 
-
+    external fun nativeAssetManager(asset:AssetManager)
 
 
     companion object {
         // Used to load the 'demo1' library on application startup.
         init {
-            System.loadLibrary("myapplication")
+            System.loadLibrary("demo1")
         }
     }
 }

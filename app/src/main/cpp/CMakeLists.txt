@@ -17,7 +17,7 @@ project("myapplication")
 include_directories(${CMAKE_SOURCE_DIR})
 
 add_library( # Sets the name of the library.
-        myapplication
+        demo1
 
         # Sets the library as a shared library.
         SHARED
@@ -43,7 +43,7 @@ find_library( # Sets the name of the path variable.
 # build script, prebuilt third-party libraries, or system libraries.
 
 target_link_libraries( # Specifies the target library.
-        myapplication
+        demo1
 
         EGL
         GLESv3
