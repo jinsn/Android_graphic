@@ -37,6 +37,12 @@
 
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
+extern "C"{
+#include "libavcodec/avcodec.h"
+}
+
+
+
 static AAssetManager* assetManager;
 // utility function for loading a 2D texture from file
 // ---------------------------------------------------
@@ -1056,3 +1062,14 @@ Java_com_jsn_demo1_MainActivity_native_1keyboard_1input(JNIEnv *env, jobject thi
         activityThreadMap[handle]->processInputClient((int)dx,(int)dy,true,dir);
     }
 }
+
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_jsn_demo1_MainActivity_nativeConfString(JNIEnv *env, jobject thiz) {
+    std::string conf(avcodec_configuration());
+    jstring res= env->NewStringUTF(conf.c_str());
+    return res;
+}
+
+//amend

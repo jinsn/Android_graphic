@@ -16,6 +16,10 @@ project("myapplication")
 
 include_directories(${CMAKE_SOURCE_DIR})
 
+
+include_directories(${CMAKE_SOURCE_DIR}/thirdInclude)
+include_directories(${CMAKE_SOURCE_DIR}/ffmpegInclude/${ANDROID_ABI})
+
 add_library( # Sets the name of the library.
         demo1
 
@@ -31,6 +35,36 @@ add_library( # Sets the name of the library.
 # you want to add. CMake verifies that the library exists before
 # completing its build.
 
+
+#ffmpeg libs
+add_library(avcodec SHARED IMPORTED)
+set_target_properties(avcodec
+        PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/ffmpegSharedLibs/${ANDROID_ABI}/libavcodec.so)
+add_library(avfilter SHARED IMPORTED)
+set_target_properties(avfilter
+        PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/ffmpegSharedLibs/${ANDROID_ABI}/libavfilter.so)
+add_library(avformat SHARED IMPORTED)
+set_target_properties(avformat
+        PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/ffmpegSharedLibs/${ANDROID_ABI}/libavformat.so)
+add_library(avutil SHARED IMPORTED)
+set_target_properties(avutil
+        PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/ffmpegSharedLibs/${ANDROID_ABI}/libavutil.so)
+add_library(swresample SHARED IMPORTED)
+set_target_properties(swresample
+        PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/ffmpegSharedLibs/${ANDROID_ABI}/libswresample.so)
+add_library(swscale SHARED IMPORTED)
+set_target_properties(swscale
+        PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/ffmpegSharedLibs/${ANDROID_ABI}/libswscale.so)
+
+
+
+#native libs
 find_library( # Sets the name of the path variable.
         log-lib
 
@@ -51,4 +85,10 @@ target_link_libraries( # Specifies the target library.
 
         # Links the target library to the log library
         # included in the NDK.
-        ${log-lib})
+        ${log-lib}
+        avcodec
+        avfilter
+        avformat
+        avutil
+        swresample
+        swscale)

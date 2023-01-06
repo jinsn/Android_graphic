@@ -3,12 +3,14 @@ package com.jsn.demo1
 import android.content.res.AssetManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
+import android.widget.Toast
 import com.jsn.demo1.databinding.ActivityMainBinding
 import kotlinx.coroutines.*
 import kotlin.concurrent.thread
@@ -57,7 +59,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
         wasd()
+        val conf:String= nativeConfString()
+        Toast.makeText(this,conf,Toast.LENGTH_SHORT).show()
+        Log.e("avcodec_configuration", conf )
     }
+
+    private external fun nativeConfString(): String
 
 
     val job= SupervisorJob();
@@ -178,6 +185,13 @@ class MainActivity : AppCompatActivity() {
         // Used to load the 'demo1' library on application startup.
         init {
             System.loadLibrary("demo1")
+            //ffmpeg
+            System.loadLibrary("avutil");
+            System.loadLibrary("swresample");
+            System.loadLibrary("avcodec");
+            System.loadLibrary("avformat");
+            System.loadLibrary("swscale");
+            System.loadLibrary("avfilter");
         }
     }
 }
